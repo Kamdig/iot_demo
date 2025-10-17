@@ -1,0 +1,4 @@
+Flask
+python-openzwave-mqtt
+paho-mqtt
+cflib
