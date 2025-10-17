@@ -12,9 +12,11 @@ if __name__ == "__main__":
     initialize_logger()
     initialize_database()
     logging.info("Starting main application...")
+    # **JUST FOR TESTING AT THE MOMENT**
     for i in range(10):
         database_insert("environment", datetime.now(), random.randint(0, 50), random.randint(0, 1000), random.choice([True, False]), random.randint(0, 2000)) #table, timestamp, temp, light, motion, co2
         sleep(1)
+    #****
     initialize_mqtt()
     publish_message("home/automation/status", "Application started")
     #start_background_tasks()
