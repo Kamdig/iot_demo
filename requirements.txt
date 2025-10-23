@@ -2,3 +2,10 @@ Flask
 python-openzwave-mqtt
 paho-mqtt
 cflib
+requests
+opencv-python
+torch
+torchvision
+pillow
+numpy
+ttkbootstrap

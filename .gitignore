@@ -221,5 +221,7 @@ test/
 .vscode/
 .DS_Store
 environment.db
-/logs
-/cache
+logs/
+cache/
+wvenv/
+train/
