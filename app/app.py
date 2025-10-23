@@ -1,7 +1,10 @@
-from flask import Flask, jsonify, request, render_template
+from flask import Flask, jsonify, render_template, request
 from app.database.database import database_get_recent
-from app.zwave.zwave import zwave_send_command
+from app.homeassistant.client import set_light_state
 import logging
+import os
+
+LIGHT_ENTITY = os.getenv("HA_LIGHT_ENTITY", "light.aeotec_led")
 
 def create_app():
     app = Flask(__name__)
@@ -9,23 +12,16 @@ def create_app():
     @app.route('/api/data')
     def get_sensor_data():
         limit = min(request.args.get('limit', default=20, type=int), 100)
-        raw_data = database_get_recent("environment", limit=limit)
-        
-        formatted_data = []
-        for entry in raw_data:
-            timestamp = entry['timestamp']
-            formatted_data.extend([
-                {"name": "Temperature (°C)", "value" : entry['temperature'], "timestamp": timestamp},
-                {"name": "Illumination (lux)", "value" : entry['illumination'], "timestamp": timestamp},
-                {"name": "Motion", "value" : entry ['motion'], "timestamp": timestamp},
-                {"name": "CO2 (ppm)", "value" : entry['co2'], "timestamp": timestamp}
-            ])
-        return jsonify(formatted_data)
+        data = database_get_recent("environment", limit)
+        return jsonify(data)
+
 
     @app.route("/api/light/<state>")
     def toggle_light(state):
-        zwave_send_command("aeotec_led", "set", value=state.lower() == "on")
-        return jsonify({"status": "success", "light_state": state})
+        desired_state = state.lower() == "on"
+        if not set_light_state(LIGHT_ENTITY, desired_state):
+            return jsonify({"status": "error", "light_state": state, "entity": LIGHT_ENTITY}), 500
+        return jsonify({"status": "success", "light_state": state, "entity": LIGHT_ENTITY})
 
     @app.route('/')
     def dashboard():

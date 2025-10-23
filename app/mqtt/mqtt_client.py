@@ -1,8 +1,8 @@
-import paho.mqtt.client as mqtt
-import logging
 from cflib.crazyflie import Crazyflie
-import time
+import paho.mqtt.client as mqtt
 import cflib.crtp
+import logging
+import time
 
 drone_trigger = False
 
