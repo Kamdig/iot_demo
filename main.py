@@ -15,6 +15,7 @@ if __name__ == "__main__":
     app = create_app()
     app.run(host="0.0.0.0", port=5000, debug=True, use_reloader=False)
 
+
 # export LOG_LEVEL=DEBUG TO SET DEBUG LEVEL
 # export HOMEASSISTANT_TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiI1Nzc0ZWRlODhmYjk0MGNkYjM1MjNjMTgzOGU2YTEwNyIsImlhdCI6MTc2MDY5MTM2MCwiZXhwIjoyMDc2MDUxMzYwfQ.dL4jt0fDsUQ4-eNlj3G9Cv-EGOlOt0bZ8lNLaRKz5J4"
 # export HOMEASSISTANT_BASE_URL="http://iotassistant.local:8123"
