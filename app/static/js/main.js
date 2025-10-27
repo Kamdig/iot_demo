@@ -90,3 +90,64 @@ function updateCharts(data) {
 
 fetchData();
 setInterval(fetchData, 5000);
+
+let autoScrollEnabled = true;
+
+// Function to fetch logs from the backend
+async function fetchLogs() {
+  try {
+    const response = await fetch('/api/logs');
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const logs = await response.json();
+
+    const container = document.getElementById('log-container');
+    if (!container) {
+      console.error("⚠️ Log container not found");
+      return;
+    }
+
+    let html = "";
+    logs.forEach(log => {
+      html += `\n=== ${log.filename} ===\n${log.content}\n`;
+    });
+
+    container.textContent = html.trim();
+
+    // Only scroll if auto-scroll is active
+    if (autoScrollEnabled) {
+      container.scrollTop = container.scrollHeight;
+    }
+  } catch (err) {
+    console.error("❌ Error fetching logs:", err);
+  }
+}
+
+// Set up button click behavior after DOM loads
+document.addEventListener('DOMContentLoaded', () => {
+  const toggleBtn = document.getElementById('toggle-scroll');
+  if (!toggleBtn) {
+    console.error("⚠️ Toggle button not found");
+    return;
+  }
+
+  // Confirm the click event is binding
+  console.log("✅ Toggle button ready");
+
+  toggleBtn.addEventListener('click', () => {
+    autoScrollEnabled = !autoScrollEnabled;
+    console.log(`Auto-scroll: ${autoScrollEnabled}`); // ← watch this in console
+
+    toggleBtn.textContent = autoScrollEnabled
+      ? "⏸ Pause Auto-Scroll"
+      : "▶ Resume Auto-Scroll";
+
+    if (autoScrollEnabled) {
+      const container = document.getElementById('log-container');
+      if (container) container.scrollTop = container.scrollHeight;
+    }
+  });
+
+  // Initial fetch
+  fetchLogs();
+  setInterval(fetchLogs, 8000);
+});

@@ -4,3 +4,22 @@ body {
 .card {
   border-radius: 12px;
 }
+
+#log-container {
+  background-color: #1e1e1e;
+  color: #9efaff;
+  font-family: monospace;
+  border-radius: 8px;
+  padding: 10px;
+  max-height: 400px;
+  overflow-y: auto;
+  transition: background-color 0.3s ease;
+}
+
+#toggle-scroll {
+  font-size: 0.9rem;
+  border-radius: 6px;
+}
+#toggle-scroll:focus {
+  box-shadow: none;
+}

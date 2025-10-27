@@ -16,7 +16,7 @@ CRAZYFLIE_URI = "radio://0/80/2M"
 cflib.crtp.init_drivers(enable_debug_driver=False)
 crazyflie = Crazyflie(rw_cache="./cache")
 
-client = mqtt.Client(client_id="flask_app")
+client = mqtt.Client(client_id="flask_app", protocol=mqtt.MQTTv311)
 client.username_pw_set(USERNAME, PASSWORD)
 
 def fly_sequence():

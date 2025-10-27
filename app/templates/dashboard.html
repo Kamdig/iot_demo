@@ -45,8 +45,21 @@
         </div>
       </div>
     </div>
+
+    <hr class ="border-light my-4">
+    <h3 class="text-center mb-3">System Logs</h3>
+
+    <div class ="d-flex justify-content-between align-items-center mb-2">
+      <button id="toggle-scroll" class="btn btn-sm btn-outline-light">⏸ Pause Auto-Scroll</button>
+      <small class="text-muted">Auto-refresh every 8s</small>
+    </div>
+
+    <div class="card bg-secondary p-3">
+      <pre id="log-container" class="text-light"
+        style="max-height: 400px; overflow-y: auto; font-size: 0.9rem;"></pre>
+    </div>
   </div>
 
   <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
-</html
+</html>

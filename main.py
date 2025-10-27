@@ -16,11 +16,13 @@ if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True, use_reloader=False)
 
 
-# export LOG_LEVEL=DEBUG TO SET DEBUG LEVEL
-# export HOMEASSISTANT_TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiI1Nzc0ZWRlODhmYjk0MGNkYjM1MjNjMTgzOGU2YTEwNyIsImlhdCI6MTc2MDY5MTM2MCwiZXhwIjoyMDc2MDUxMzYwfQ.dL4jt0fDsUQ4-eNlj3G9Cv-EGOlOt0bZ8lNLaRKz5J4"
+# export LOG_LEVEL=DEBUG (to set logger to debug)
+# export HOMEASSISTANT_TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiI0MmFiZWIxMGNmYmM0YWFhYjU2MWI5M2RmZGFhMTVjYSIsImlhdCI6MTc2MTU1NzEwNCwiZXhwIjoyMDc2OTE3MTA0fQ.0PH7iRiv7VHRtJUnPGDiyJTuiJaX0KrhkWnkH4RLr6c"
 # export HOMEASSISTANT_BASE_URL="http://iotassistant.local:8123"
 # export HA_TEMPERATURE_SENSOR="sensor.co2_monitor_air_quality_detector_air_temperature"
 # export HA_ILLUMINANCE_SENSOR="sensor.multisensor_6_illuminance"
 # export HA_MOTION_SENSOR="binary_sensor.multisensor_6_motion_detection"
 # export HA_CO2_SENSOR="sensor.co2_monitor_air_quality_detector_carbon_dioxide_co2_level"
 # export HA_LIGHT_ENTITY=light.bulb_6_multi_color
+# export HA_THUMBS_LIGHT_ENTITY="light.bulb_6_multi_color"
+# export THUMBSDI_SPLAY_WINDOW="0" (if testing = 1 to show window)
