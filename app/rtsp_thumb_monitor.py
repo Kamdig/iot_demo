@@ -15,7 +15,7 @@ import time
 from typing import Optional
 
 import cv2
-from thumbs_ai.thumbs import classify_frame, load_assets, overlay_prediction
+from thumbs.thumbs import classify_frame, load_assets, overlay_prediction
 
 
 def parse_args() -> argparse.Namespace:

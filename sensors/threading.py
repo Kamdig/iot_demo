@@ -1,6 +1,6 @@
 from sensors.sensor_loops import read_sensor_loop, automation_logic_loop
 from app.mqtt.mqtt_client import drone_trigger, fly_sequence
-from thumbs_ai.thumbs import run_rtsp_monitor
+from thumbs.thumbs import run_rtsp_monitor
 
 import threading
 import logging
