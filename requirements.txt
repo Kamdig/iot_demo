@@ -1,5 +1,4 @@
 Flask
-python-openzwave-mqtt
 paho-mqtt
 cflib
 requests
@@ -8,4 +7,5 @@ torch
 torchvision
 pillow
 numpy
+tflite-runtime
 ttkbootstrap

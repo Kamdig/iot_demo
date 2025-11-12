@@ -6,23 +6,22 @@ frames from the configured RTSP stream, and render probability overlays. This
 script is useful for monitoring predictions without triggering Home Assistant
 actions (see ``thumbs_ai/thumbs.py`` for automation support).
 """
-
 from __future__ import annotations
 
-import argparse
-import sys
-import time
-from typing import Optional
-
-import cv2
 from thumbs.thumbs import classify_frame, load_assets, overlay_prediction
+from typing import Optional
+import argparse
+import time
+import sys
+import cv2
 
 
+# Parse CLI flags for connecting to and monitoring the RTSP stream.
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Preview thumbs detection results from an RTSP stream.")
     parser.add_argument(
         "--rtsp-url",
-        default="rtsp://iotworldcam:smart123@10.136.171.24/stream2",
+        default="rtsp://iotworldcam:smart123@192.168.1.204/stream2",
         help="RTSP stream URL to connect to.",
     )
     parser.add_argument(
@@ -40,6 +39,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+# Run the monitoring loop with periodic classification and logging.
 def main() -> None:
     args = parse_args()
 
@@ -56,6 +56,7 @@ def main() -> None:
     print(f"[INFO] Class labels: {list(class_names)}")
 
     cap = cv2.VideoCapture(args.rtsp_url)
+    # Fail fast when the RTSP connection cannot be established.
     if not cap.isOpened():
         print(f"[ERROR] Unable to open RTSP stream: {args.rtsp_url}")
         sys.exit(1)
@@ -66,16 +67,20 @@ def main() -> None:
     last_report_time = 0.0
 
     try:
+        # Continuously read frames until the user quits.
         while True:
             ret, frame = cap.read()
+            # Retry briefly when a frame cannot be read from the stream.
             if not ret:
                 print("[WARNING] Failed to read frame from stream. Retrying...")
                 time.sleep(0.5)
                 continue
 
             frame_idx += 1
+            # Only classify every Nth frame to control compute usage.
             if frame_idx % max(args.frame_skip, 1) != 0:
                 cv2.imshow("Thumbs Detector", frame)
+                # Exit early if the user presses "q".
                 if cv2.waitKey(1) & 0xFF == ord("q"):
                     break
                 continue
@@ -85,6 +90,7 @@ def main() -> None:
 
             certainty = f"{confidence * 100:.1f}%"
             now = time.time()
+            # Log the detection when it meets the confidence and cooldown rules.
             if confidence >= args.min_confidence and (label != last_label or now - last_report_time > 2.0):
                 breakdown = ", ".join(
                     f"{name}: {prob * 100:.1f}%"
@@ -104,6 +110,7 @@ def main() -> None:
             )
             cv2.imshow("Thumbs Detector", frame)
 
+            # Allow the operator to exit the preview loop via "q".
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 break
     finally:
@@ -112,4 +119,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    # Support running this module directly as a script.
     main()

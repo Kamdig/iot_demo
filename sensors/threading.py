@@ -1,41 +1,28 @@
-from sensors.sensor_loops import read_sensor_loop, automation_logic_loop
-from app.mqtt.mqtt_client import drone_trigger, fly_sequence
+from sensors.sensor_loops import read_sensor_loop
 from thumbs.thumbs import run_rtsp_monitor
-
 import threading
 import logging
 import time
 import os
 
+
+# Launch sensor, automation, drone, and optional thumbs monitor threads.
 def start_background_tasks():
     threading.Thread(target=read_sensor_loop, daemon=True).start()
-    threading.Thread(target=automation_logic_loop, daemon=True).start()
-    threading.Thread(target=drone_listener_loop, daemon=True).start()
+    # Spin up the RTSP thumbs monitor only when enabled via configuration.
     if is_thumbs_monitor_enabled():
         threading.Thread(target=thumbs_monitor_loop, daemon=True, name="ThumbsMonitor").start()
     logging.info("Background sensor and automation threads started.")
 
-def drone_listener_loop():
-    global drone_trigger
-    while True:
-        try:
-            if drone_trigger:
-                logging.info("Drone trigger detected, starting flight sequence...")
-                fly_sequence()
-                drone_trigger = False
-            time.sleep(1)
-        except Exception as e:
-            logging.error(f"Error in drone listener loop: {e}")
-        time.sleep(1)
-
-
 def is_thumbs_monitor_enabled() -> bool:
+    # Interpret the environment toggle allowing the thumbs monitor to run.
     value = os.getenv("THUMBS_MONITOR_ENABLED", "1").strip().lower()
     return value not in {"0", "false", "off", "no"}
 
 
 def thumbs_monitor_loop():
-    url = os.getenv("THUMBS_RTSP_URL", "rtsp://iotworldcam:smart123@10.136.171.24/stream2")
+    # Continuously run the RTSP thumbs monitor with retry safeguards.
+    url = os.getenv("THUMBS_RTSP_URL", "rtsp://iotworldcam:smart123@192.168.1.204/stream2")
     frame_skip = int(os.getenv("THUMBS_FRAME_SKIP", "2"))
     min_confidence = float(os.getenv("THUMBS_MIN_CONFIDENCE", "0.6"))
     cooldown = float(os.getenv("THUMBS_ACTION_COOLDOWN", "2.0"))
@@ -44,6 +31,7 @@ def thumbs_monitor_loop():
 
     logging.info("Starting thumbs monitor (display=%s, HA enabled=%s).", display_window, not disable_ha)
 
+    # Keep restarting the monitor when it crashes to maintain coverage.
     while True:
         try:
             run_rtsp_monitor(

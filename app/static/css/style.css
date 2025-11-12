@@ -23,3 +23,16 @@ body {
 #toggle-scroll:focus {
   box-shadow: none;
 }
+.log-info {
+  color: #9efaff;          /* calm cyan */
+}
+.log-warning {
+  color: #ffd966;          /* soft yellow */
+}
+.log-error {
+  color: #ff6666;          /* warm red */
+  font-weight: bold;
+}
+.log-debug {
+  color: #aaaaaa;          /* neutral grey */
+}

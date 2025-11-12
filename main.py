@@ -1,10 +1,11 @@
-from app.database.database import initialize_database
 from app.mqtt.mqtt_client import initialize_mqtt, publish_message
+from app.database.database import initialize_database
 from sensors.threading import start_background_tasks
 from app.logger.logger import initialize_logger
 from app.app import create_app
 import logging
 
+# Entry point: wire up infrastructure and start the Flask app server.
 if __name__ == "__main__":
     initialize_logger()
     initialize_database()

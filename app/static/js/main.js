@@ -1,6 +1,7 @@
 let tempChart, lightChart, motionChart, co2Chart;
 
 async function fetchData() {
+  // Pull the latest sensor snapshots from the backend API.
   const response = await fetch('/api/data');
   const data = await response.json();
   updateCards(data);
@@ -8,6 +9,7 @@ async function fetchData() {
 }
 
 function updateCards(data) {
+  // Render the hero cards with the newest readings.
   const latest = data[0];
   const container = document.getElementById('sensor-cards');
   container.innerHTML = `
@@ -39,6 +41,7 @@ function updateCards(data) {
 }
 
 function updateCharts(data) {
+  // Rebuild the time-series charts based on the retrieved dataset.
   const timestamps = data.map(d => d.timestamp).reverse();
   const temps = data.map(d => d.temperature).reverse();
   const lights = data.map(d => d.illumination).reverse();
@@ -58,6 +61,7 @@ function updateCharts(data) {
   const ctxM = document.getElementById('motionChart');
   const ctxC = document.getElementById('co2Chart');
 
+  // Tear down any existing chart instances before drawing fresh ones.
   if (tempChart) tempChart.destroy();
   if (lightChart) lightChart.destroy();
   if (motionChart) motionChart.destroy();
@@ -93,27 +97,61 @@ setInterval(fetchData, 5000);
 
 let autoScrollEnabled = true;
 
+// Safely escape HTML special characters in logs
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+
 // Function to fetch logs from the backend
+console.log("📜 Dashboard script loaded");
+
 async function fetchLogs() {
+  console.log("Fetching logs...");
   try {
     const response = await fetch('/api/logs');
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    console.log("Response:", response.status);
     const logs = await response.json();
-
+    console.log("Logs received:", logs.length);
     const container = document.getElementById('log-container');
+    // Abort gracefully if the dashboard lacks a log container.
     if (!container) {
-      console.error("⚠️ Log container not found");
+      console.error("No log-container element found.");
       return;
     }
 
     let html = "";
+    // Render each log file block with sanitized contents.
     logs.forEach(log => {
-      html += `\n=== ${log.filename} ===\n${log.content}\n`;
-    });
+  html += `<div><strong>${escapeHtml(log.filename)}</strong></div>`;
+  const lines = (log.content || "").split(/\r?\n/).slice(-100);
 
-    container.textContent = html.trim();
+  // Walk each individual log line while trimming whitespace.
+  lines.forEach(line => {
+    if (!line.trim()) return; // Skip blank lines to avoid noisy output.
 
-    // Only scroll if auto-scroll is active
+    let cssClass = "log-info";
+    const upper = line.toUpperCase();
+
+    // Adjust styling based on the detected log severity keyword.
+    if (upper.includes("ERROR")) cssClass = "log-error";
+    else if (upper.includes("WARN")) cssClass = "log-warning";
+    else if (upper.includes("DEBUG")) cssClass = "log-debug";
+
+    html += `<div class="${cssClass}">${escapeHtml(line)}</div>`;
+  });
+});
+
+
+    container.innerHTML = html;
+    console.log("Updated DOM with logs");
+
+    // Keep scrolling pinned to the latest entries when auto-scroll is enabled.
     if (autoScrollEnabled) {
       container.scrollTop = container.scrollHeight;
     }
@@ -122,32 +160,28 @@ async function fetchLogs() {
   }
 }
 
-// Set up button click behavior after DOM loads
-document.addEventListener('DOMContentLoaded', () => {
-  const toggleBtn = document.getElementById('toggle-scroll');
-  if (!toggleBtn) {
-    console.error("⚠️ Toggle button not found");
-    return;
-  }
+// Handle Pause/Resume Auto-Scroll
+const toggleBtn = document.getElementById('toggle-scroll');
 
-  // Confirm the click event is binding
-  console.log("✅ Toggle button ready");
-
+if (toggleBtn) {
+  // Toggle auto-scroll on click so users can pause the output.
   toggleBtn.addEventListener('click', () => {
     autoScrollEnabled = !autoScrollEnabled;
-    console.log(`Auto-scroll: ${autoScrollEnabled}`); // ← watch this in console
-
     toggleBtn.textContent = autoScrollEnabled
       ? "⏸ Pause Auto-Scroll"
       : "▶ Resume Auto-Scroll";
 
-    if (autoScrollEnabled) {
-      const container = document.getElementById('log-container');
-      if (container) container.scrollTop = container.scrollHeight;
+    // If re-enabled, jump to the newest logs immediately
+    const container = document.getElementById('log-container');
+    if (autoScrollEnabled && container) {
+      container.scrollTop = container.scrollHeight;
     }
   });
+}
 
-  // Initial fetch
+document.addEventListener('DOMContentLoaded', () => {
+  // Start the log polling loop once the DOM is ready.
+  console.log("DOM fully loaded, starting fetch interval");
   fetchLogs();
   setInterval(fetchLogs, 8000);
 });

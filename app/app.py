@@ -8,10 +8,12 @@ LIGHT_ENTITY = os.getenv("HA_LIGHT_ENTITY", "light.aeotec_led")
 LOG_DIR = "logs"
 
 def create_app():
+    # Flask application factory: wires up API routes and templates.
     app = Flask(__name__)
 
     @app.route('/api/data')
     def get_sensor_data():
+        # Return the most recent sensor samples, capped to 100 items.
         limit = min(request.args.get('limit', default=20, type=int), 100)
         data = database_get_recent("environment", limit)
         return jsonify(data)
@@ -19,29 +21,47 @@ def create_app():
 
     @app.route("/api/light/<state>")
     def toggle_light(state):
+        # Flip the configured Home Assistant light on/off.
         desired_state = state.lower() == "on"
+        # Report failures if Home Assistant rejected the command.
         if not set_light_state(LIGHT_ENTITY, desired_state):
             return jsonify({"status": "error", "light_state": state, "entity": LIGHT_ENTITY}), 500
         return jsonify({"status": "success", "light_state": state, "entity": LIGHT_ENTITY})
     
+    
     @app.route('/api/logs')
     def get_logs():
+        base_dir = os.path.abspath(os.path.dirname(__file__))
+        log_dir = os.path.join(base_dir, "..", LOG_DIR)
+        log_dir = os.path.abspath(log_dir)
+
+        # Gather the *.log files from the logs directory.
         log_files = [
-            f for f in os.listdir(LOG_DIR)
+            f for f in os.listdir(log_dir)
             if f.endswith(".log")
         ]
 
-        # Sort files by last modified (newest file last)
+        # Sort by last modified time (newest file first)
         log_files.sort(
-            key=lambda f: os.path.getmtime(os.path.join(LOG_DIR, f))
+            key=lambda f: os.path.getmtime(os.path.join(log_dir, f)),
+            reverse=False  # change to True if you want newest first
         )
 
         logs = []
+        # Iterate over each log file and capture a safe preview of the contents.
         for f in log_files:
-            path = os.path.join(LOG_DIR, f)
+            path = os.path.join(log_dir, f)
             try:
-                with open(path, "r") as file:
-                    # Keep the last 100 lines (oldest → newest)
+                # Skip enormous files (>5 MB) for safety
+                if os.path.getsize(path) > 5 * 1024 * 1024:
+                    logs.append({
+                        "filename": f,
+                        "content": f"Skipped: {f} is too large (>5MB)."
+                    })
+                    continue
+
+                with open(path, "r", encoding="utf-8", errors="replace") as file:
+                    # Keep the last 100 lines only
                     lines = file.readlines()[-100:]
                     logs.append({
                         "filename": f,
@@ -54,8 +74,10 @@ def create_app():
                 })
         return jsonify(logs)
 
+
     @app.route('/')
     def dashboard():
+        # Serve the main dashboard template.
         logging.info("Creating Flask app...")
         return render_template('dashboard.html')
 

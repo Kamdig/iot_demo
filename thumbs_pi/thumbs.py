@@ -1,41 +1,48 @@
 """
-Thumbs-up/-down detection utilities with optional Home Assistant integration.
+Standalone thumbs-up/-down detection utilities with optional Home Assistant integration.
 
-This module now coordinates smaller helpers that live alongside it:
+This module coordinates helpers that live alongside it inside the thumbs_pi package:
 
-  • thumbs.assets          – model paths, ConvNeXt wrapper, and asset loading
-  • thumbs.inference       – frame classification helpers
-  • thumbs.overlay         – OpenCV drawing utilities
-  • thumbs.home_assistant  – Home Assistant automation bridge
-  • thumbs.monitor         – RTSP stream loop
+  • thumbs_pi.assets          – model paths, ConvNeXt wrapper, and asset loading
+  • thumbs_pi.inference       – frame classification helpers
+  • thumbs_pi.overlay         – OpenCV drawing utilities
+  • thumbs_pi.home_assistant  – Home Assistant automation bridge
+  • thumbs_pi.monitor         – RTSP stream loop
 
-The public API remains unchanged so existing imports continue to work.
+The public API mirrors the legacy thumbs module so existing imports can switch easily.
 """
 from __future__ import annotations
 
-from .home_assistant import HAServiceAction, HomeAssistantGestureBridge, load_action_from_env
-from .overlay import draw_probability_panel, overlay_prediction
-from .inference import classify_frame
-from .monitor import run_rtsp_monitor
 import argparse
 import logging
 import os
+
 from .assets import (
     CLASSES_PATH,
+    CLASSES_TXT_PATH,
     MODEL_PATH,
     ConvNeXtClassifier,
     INFERENCE_TRANSFORM as TRANSFORM,
+    TFLITE_CANDIDATES,
+    TFLiteModelBundle,
     get_device,
     load_assets,
     load_class_names,
     save_class_names,
 )
+from .home_assistant import HAServiceAction, HomeAssistantGestureBridge, load_action_from_env
+from .inference import classify_frame
+from .monitor import run_rtsp_monitor
+from .overlay import draw_probability_panel, overlay_prediction
 
 __all__ = [
     "CLASSES_PATH",
+    "CLASSES_TXT_PATH",
     "MODEL_PATH",
     "ConvNeXtClassifier",
     "TRANSFORM",
+    "TFLITE_CANDIDATES",
+    "TFLiteModelBundle",
     "get_device",
     "load_assets",
     "load_class_names",
@@ -52,12 +59,11 @@ __all__ = [
 ]
 
 
-# Parse CLI flags controlling the stream monitor and HA actions.
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Thumbs-up/down detection with optional Home Assistant actions.")
     parser.add_argument(
         "--rtsp-url",
-        default=os.getenv("THUMBS_RTSP_URL", "rtsp://iotworldcam:smart123@192.168.1.204/stream2"),
+        default=os.getenv("THUMBS_RTSP_URL", "rtsp://iotworldcam:smart123@10.136.171.24/stream2"),
         help="RTSP stream URL to connect to.",
     )
     parser.add_argument(
@@ -76,7 +82,7 @@ def parse_args() -> argparse.Namespace:
         "--action-cooldown",
         type=float,
         default=float(os.getenv("THUMBS_ACTION_COOLDOWN", "2.0")),
-        help="Seconds to wait before repeating the same HA action (default 2).",
+        help="Seconds to wait before repeating the same Home Assistant action (default 2).",
     )
     parser.add_argument(
         "--no-window",
@@ -91,7 +97,6 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-# Configure logging, parse CLI args, and launch the monitor loop.
 def main() -> None:
     logging.basicConfig(
         level=os.getenv("THUMBS_LOG_LEVEL", "INFO").upper(),
@@ -109,5 +114,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    # Allow this module to act as an executable script.
     main()
