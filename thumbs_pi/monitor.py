@@ -69,6 +69,21 @@ def _build_home_assistant_bridge(
     )
 
 
+def _detect_usb_webcam(max_device_index: int = 4) -> Optional[int]:
+    """Return the first USB webcam index that can be opened, or None if none found."""
+    for device_idx in range(max_device_index):
+        cap = cv2.VideoCapture(device_idx)
+        if not cap.isOpened():
+            cap.release()
+            continue
+
+        ret, _ = cap.read()
+        cap.release()
+        if ret:
+            return device_idx
+    return None
+
+
 def run_rtsp_monitor(
     rtsp_url: str,
     frame_skip: int,
@@ -86,9 +101,27 @@ def run_rtsp_monitor(
         enable_home_assistant=enable_home_assistant,
     )
 
-    cap = cv2.VideoCapture(rtsp_url)
+    numeric_index: Optional[int]
+    try:
+        numeric_index = int(rtsp_url)
+    except (TypeError, ValueError):
+        numeric_index = None
+
+    capture_source = numeric_index if numeric_index is not None else rtsp_url
+    cap = cv2.VideoCapture(capture_source)
     if not cap.isOpened():
-        raise RuntimeError(f"Unable to open RTSP stream: {rtsp_url}")
+        usb_index = _detect_usb_webcam()
+        if usb_index is None:
+            target_desc = f"RTSP stream '{rtsp_url}'" if numeric_index is None else f"camera index {numeric_index}"
+            raise RuntimeError(f"Unable to open {target_desc}. No USB webcams detected either.")
+        suggestion = (
+            f"A USB webcam is available at index {usb_index}; try rerunning with '--rtsp-url {usb_index}'."
+            if numeric_index is None
+            else "A USB webcam responded during probing; verify it is not busy and you have permissions."
+        )
+        raise RuntimeError(
+            f"Unable to open {('RTSP stream ' + rtsp_url) if numeric_index is None else f'camera index {numeric_index}'}. {suggestion}"
+        )
 
     logger.info("Connected to RTSP stream. Press 'q' to exit.")
     frame_idx = 0

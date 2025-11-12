@@ -1,10 +1,7 @@
 Flask
 paho-mqtt
-cflib
 requests
 opencv-python
-torch
-torchvision
 pillow
 numpy
 tflite-runtime

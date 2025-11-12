@@ -15,17 +15,6 @@ except ImportError:  # pragma: no cover - fallback when tflite-runtime is unavai
     except ImportError:  # pragma: no cover - surfaced at load-time below
         Interpreter = None  # type: ignore
 
-try:  # PyTorch is only required for the legacy training helpers in this module
-    import torch
-    import torch.nn as nn
-    import torchvision.models as models
-    import torchvision.transforms as transforms
-except ImportError:  # pragma: no cover - allows inference-only deployments without torch
-    torch = None  # type: ignore
-    nn = None  # type: ignore
-    models = None  # type: ignore
-    transforms = None  # type: ignore
-
 # Project-local paths used by both training and inference code.
 BASE_DIR = Path(__file__).resolve().parent
 MODEL_PATH = BASE_DIR / "best_model.pth"
@@ -36,19 +25,13 @@ TFLITE_CANDIDATES = (
     BASE_DIR / "model_int8.tflite",
     BASE_DIR / "model_quant.tflite",
     BASE_DIR / "model.tflite",
+    # Common MobileNetV3-small names we might provide for Raspberry Pi deployments
+    BASE_DIR / "mobilenet_v3_small.tflite",
+    BASE_DIR / "mobilenet_v3_small_int8.tflite",
 )
 
-# Shared transform for evaluation/inference.
-if transforms is not None:
-    INFERENCE_TRANSFORM = transforms.Compose(
-        [
-            transforms.Resize((224, 224)),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        ]
-    )
-else:  # pragma: no cover - training utilities are unavailable without torchvision
-    INFERENCE_TRANSFORM = None  # type: ignore
+# Legacy placeholder kept for backward compatibility with the thumbs package API.
+INFERENCE_TRANSFORM = None  # type: ignore
 
 
 @dataclass
@@ -63,37 +46,9 @@ class TFLiteModelBundle:
     input_dtype: np.dtype
     input_quantization: Tuple[float, int]
     output_quantization: Tuple[float, int]
-
-
-if torch is not None and nn is not None and models is not None:
-
-    class ConvNeXtClassifier(nn.Module):
-        """ConvNeXt Tiny backbone with a frozen body and custom classification head."""
-
-        def __init__(self, num_classes: int) -> None:
-            super().__init__()
-            self.convnext = models.convnext_tiny(weights=models.ConvNeXt_Tiny_Weights.IMAGENET1K_V1)
-            for param in self.convnext.parameters():
-                param.requires_grad = False
-            self.convnext.classifier[2] = nn.Linear(768, num_classes)
-
-        def forward(self, x: "torch.Tensor") -> "torch.Tensor":
-            return self.convnext(x)
-
-
-    def get_device() -> "torch.device":  # type: ignore[override]
-        """Return CUDA device when available, otherwise fall back to CPU."""
-        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-else:  # pragma: no cover - executed only when torch is absent
-
-    class ConvNeXtClassifier:  # type: ignore[no-redef]
-        def __init__(self, *_: object, **__: object) -> None:
-            raise ImportError("PyTorch is not installed; ConvNeXtClassifier is unavailable.")
-
-
-    def get_device() -> "torch.device":  # type: ignore[override]
-        raise ImportError("PyTorch is not installed; get_device() cannot be used.")
+    # Indicates which preprocessing the model expects for float inputs.
+    # For example: 'mobilenet' means inputs should be scaled to [-1, 1].
+    preprocess: str = "zero_one"
 
 
 def _ensure_class_names(value: Iterable[str]) -> Sequence[str]:
@@ -157,13 +112,29 @@ def _to_quant_tuple(raw: Tuple[float, int] | Tuple[float, int, int]) -> Tuple[fl
     return 0.0, 0
 
 
-def load_assets(model_path: Optional[Path] = None) -> Tuple[TFLiteModelBundle, Sequence[str]]:
-    """Load a TensorFlow Lite interpreter and class labels for inference on constrained devices."""
+def load_assets(model_path: Optional[Path] = None, *, num_threads: Optional[int] = 4) -> Tuple[TFLiteModelBundle, Sequence[str]]:
+    """Load a TensorFlow Lite interpreter and class labels for inference on constrained devices.
+
+    Parameters
+    ----------
+    model_path:
+        Optional Path to a specific .tflite file. If omitted, the function will search
+        the TFLITE_CANDIDATES tuple.
+    num_threads:
+        Number of threads to request from the TFLite interpreter (helps on Raspberry Pi 4).
+        If the underlying Interpreter class does not accept the argument it will be ignored.
+    """
 
     interpreter_cls = _assert_interpreter_available()
     resolved_model = _resolve_tflite_path(model_path)
 
-    interpreter = interpreter_cls(model_path=str(resolved_model))
+    # Try to instantiate the interpreter with multi-threading enabled where supported.
+    try:
+        # Many tflite-runtime builds accept num_threads as a kwarg.
+        interpreter = interpreter_cls(model_path=str(resolved_model), num_threads=int(num_threads or 1))
+    except TypeError:
+        # Fallback for interpreter implementations that don't accept num_threads.
+        interpreter = interpreter_cls(model_path=str(resolved_model))
     interpreter.allocate_tensors()
 
     input_details = interpreter.get_input_details()
@@ -186,6 +157,11 @@ def load_assets(model_path: Optional[Path] = None) -> Tuple[TFLiteModelBundle, S
         output_quantization=_to_quant_tuple(tuple(output_detail.get("quantization", (0.0, 0)))),
     )
 
+    # Heuristic: if the model filename contains 'mobilenet' assume MobileNet preprocessing
+    model_name = resolved_model.name.lower()
+    if "mobilenet" in model_name or "mobilenet_v3" in model_name or "mobilenetv3" in model_name:
+        bundle.preprocess = "mobilenet"
+
     class_names = load_class_names()
     return bundle, class_names
 
@@ -197,9 +173,7 @@ __all__ = [
     "CLASSES_TXT_PATH",
     "TFLITE_CANDIDATES",
     "INFERENCE_TRANSFORM",
-    "ConvNeXtClassifier",
     "TFLiteModelBundle",
-    "get_device",
     "save_class_names",
     "load_class_names",
     "load_assets",

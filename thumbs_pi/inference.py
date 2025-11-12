@@ -8,10 +8,20 @@ import numpy as np
 from .assets import TFLiteModelBundle
 
 
-def _normalize_frame(frame: np.ndarray, *, width: int, height: int) -> np.ndarray:
+def _normalize_frame(frame: np.ndarray, *, width: int, height: int, preprocess: str = "zero_one") -> np.ndarray:
+    """Convert BGR frame to RGB, resize and apply preprocessing.
+
+    preprocess options:
+      - 'zero_one' : scale to [0, 1] (default)
+      - 'mobilenet' : scale to [-1, 1] as MobileNetV3 expects
+    """
     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     resized = cv2.resize(rgb_frame, (width, height), interpolation=cv2.INTER_AREA)
-    return resized.astype(np.float32) / 255.0
+    arr = resized.astype(np.float32)
+    if preprocess == "mobilenet":
+        # MobileNetV3 preprocessing: [0,255] -> [-1, 1]
+        return (arr / 127.5) - 1.0
+    return arr / 255.0
 
 
 def _quantize_input(data: np.ndarray, *, dtype: np.dtype, scale: float, zero_point: int) -> np.ndarray:
@@ -43,7 +53,9 @@ def classify_frame(
 ) -> Tuple[int, float, np.ndarray]:
     """Run a forward pass on an OpenCV BGR frame and return class index plus confidences."""
 
-    normalized = _normalize_frame(frame, width=bundle.input_width, height=bundle.input_height)
+    normalized = _normalize_frame(
+        frame, width=bundle.input_width, height=bundle.input_height, preprocess=getattr(bundle, "preprocess", "zero_one")
+    )
     input_tensor = np.expand_dims(normalized, axis=0)
 
     if bundle.input_dtype == np.float32:

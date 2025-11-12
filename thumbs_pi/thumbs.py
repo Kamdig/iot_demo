@@ -3,7 +3,7 @@ Standalone thumbs-up/-down detection utilities with optional Home Assistant inte
 
 This module coordinates helpers that live alongside it inside the thumbs_pi package:
 
-  • thumbs_pi.assets          – model paths, ConvNeXt wrapper, and asset loading
+  • thumbs_pi.assets          – model paths and asset loading
   • thumbs_pi.inference       – frame classification helpers
   • thumbs_pi.overlay         – OpenCV drawing utilities
   • thumbs_pi.home_assistant  – Home Assistant automation bridge
@@ -21,11 +21,9 @@ from .assets import (
     CLASSES_PATH,
     CLASSES_TXT_PATH,
     MODEL_PATH,
-    ConvNeXtClassifier,
     INFERENCE_TRANSFORM as TRANSFORM,
     TFLITE_CANDIDATES,
     TFLiteModelBundle,
-    get_device,
     load_assets,
     load_class_names,
     save_class_names,
@@ -39,11 +37,9 @@ __all__ = [
     "CLASSES_PATH",
     "CLASSES_TXT_PATH",
     "MODEL_PATH",
-    "ConvNeXtClassifier",
     "TRANSFORM",
     "TFLITE_CANDIDATES",
     "TFLiteModelBundle",
-    "get_device",
     "load_assets",
     "load_class_names",
     "save_class_names",

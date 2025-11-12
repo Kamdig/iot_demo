@@ -16,7 +16,7 @@ TFLITE_QUANT_PATH = BASE_DIR / "model_int8.tflite"
 CLASS_NAMES_PATH = BASE_DIR / "class_names.txt"
 
 # === Parameters ===
-IMG_SIZE = (224, 224)
+IMG_SIZE = (160, 160)     # smaller input = faster training/inference
 BATCH_SIZE = 16
 EPOCHS = 15
 VAL_SPLIT = 0.2
@@ -62,35 +62,30 @@ def prepare_datasets():
     return train_ds, val_ds, class_names
 
 
-def build_model(num_classes: int, fine_tune=False):
-    # Construct and return the ConvNeXt-based classifier plus its base model.
-    """Build a ConvNeXt-Tiny-based image classifier with transfer learning."""
+def build_model(num_classes: int):
     data_augmentation = keras.Sequential([
         layers.RandomFlip("horizontal"),
         layers.RandomRotation(0.1),
-        layers.RandomTranslation(0.2, 0.2),
-        layers.RandomContrast(0.4),
+        layers.RandomContrast(0.2),
     ])
 
-    # ✅ Use pretrained ConvNeXt-Tiny weights (ImageNet-1K)
-    base_model = tf.keras.applications.ConvNeXtTiny(
+    base_model = tf.keras.applications.MobileNetV3Small(
         include_top=False,
         input_shape=IMG_SIZE + (3,),
         pooling="avg",
-        weights="imagenet",
+        weights="imagenet"
     )
-
-    # Freeze base for initial training
-    base_model.trainable = False
+    base_model.trainable = False  # freeze pretrained weights
 
     inputs = keras.Input(shape=IMG_SIZE + (3,))
     x = data_augmentation(inputs)
-    x = tf.keras.applications.convnext.preprocess_input(x)
+    x = tf.keras.applications.mobilenet_v3.preprocess_input(x)
     x = base_model(x, training=False)
-    x = layers.Dense(256, activation="relu")(x)
+    x = layers.Dense(128, activation="relu")(x)
     x = layers.Dropout(0.3)(x)
     outputs = layers.Dense(num_classes, activation="softmax")(x)
     model = keras.Model(inputs, outputs)
+
     return model, base_model
 
 
@@ -109,7 +104,7 @@ def train_model():
 
     callbacks = [
         keras.callbacks.EarlyStopping(patience=PATIENCE, restore_best_weights=True),
-        keras.callbacks.ModelCheckpoint(MODEL_PATH, save_best_only=True),
+        keras.callbacks.ModelCheckpoint(str(MODEL_PATH.with_suffix(".h5")), save_best_only=True, save_format="h5"),
         keras.callbacks.ReduceLROnPlateau(factor=0.5, patience=2),
     ]
 
@@ -133,23 +128,28 @@ def train_model():
     model.save(MODEL_PATH)
     print(f"✅ Saved trained model to {MODEL_PATH}")
 
-    # === Convert to TensorFlow Lite ===
+    model.fit(train_ds, validation_data=val_ds, epochs=EPOCHS, callbacks=callbacks)
+    model.save(MODEL_PATH)
+    print(f"✅ Saved trained model to {MODEL_PATH}")
+
+    # === Convert to TensorFlow Lite with full int8 quantization ===
+    def representative_dataset_gen():
+        for images, _ in train_ds.take(100):
+            yield [images]
+
     converter = tf.lite.TFLiteConverter.from_keras_model(model)
-    tflite_model: bytes = converter.convert()
+    converter.optimizations = [tf.lite.Optimize.DEFAULT]
+    converter.representative_dataset = representative_dataset_gen
+    converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+    converter.inference_input_type = tf.uint8
+    converter.inference_output_type = tf.uint8
 
-    with open(TFLITE_PATH, "wb") as f:
-        f.write(tflite_model)
-
-    print(f"✅ Converted to TensorFlow Lite: {TFLITE_PATH}")
-
-    # === Quantize for Raspberry Pi ===
-    converter.optimizations = cast(list, [tf.lite.Optimize.DEFAULT])
-    tflite_quant_model: bytes = converter.convert()
-
-    with open(TFLITE_QUANT_PATH, "wb") as f:
+    tflite_quant_model = converter.convert()
+    with open(str(TFLITE_QUANT_PATH), "wb") as f:
         f.write(tflite_quant_model)
 
-    print(f"✅ Quantized model saved as {TFLITE_QUANT_PATH}")
+    print(f"✅ Quantized int8 model saved as {TFLITE_QUANT_PATH}")
+
 
 
 
