@@ -1,88 +1,58 @@
 from __future__ import annotations
-
-from typing import Tuple
-
 import cv2
 import numpy as np
+import tensorflow as tf
+from pathlib import Path
 
-from .assets import TFLiteModelBundle
+from .model3 import IMG_SIZE, load_class_names, TFLITE_QUANT_PATH
+
+# XNNPACK disabled via env var set in main.py
+_interpreter = tf.lite.Interpreter(model_path=str(TFLITE_QUANT_PATH))
+_interpreter.allocate_tensors()
+
+_input_details = _interpreter.get_input_details()
+_output_details = _interpreter.get_output_details()
+
+_input_index = _input_details[0]["index"]
+_output_index = _output_details[0]["index"]
+
+_class_names = load_class_names()
 
 
-def _normalize_frame(frame: np.ndarray, *, width: int, height: int, preprocess: str = "zero_one") -> np.ndarray:
-    """Convert BGR frame to RGB, resize and apply preprocessing.
 
-    preprocess options:
-      - 'zero_one' : scale to [0, 1] (default)
-      - 'mobilenet' : scale to [-1, 1] as MobileNetV3 expects
-    """
-    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    resized = cv2.resize(rgb_frame, (width, height), interpolation=cv2.INTER_AREA)
+def _preprocess_frame(frame: np.ndarray) -> np.ndarray:
+    """Resize and preprocess to match MobileNetV3 expectations."""
+    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    resized = cv2.resize(rgb, IMG_SIZE, interpolation=cv2.INTER_AREA)
+
+    if _input_dtype == np.uint8:
+        # Quantized model
+        return resized.astype(np.uint8)
+
+    # Float model → MobileNetV3 preprocess: [0,255] → [-1,1]
     arr = resized.astype(np.float32)
-    if preprocess == "mobilenet":
-        # MobileNetV3 preprocessing: [0,255] -> [-1, 1]
-        return (arr / 127.5) - 1.0
-    return arr / 255.0
+    arr = (arr / 127.5) - 1.0
+    return arr.astype(np.float32)
 
 
-def _quantize_input(data: np.ndarray, *, dtype: np.dtype, scale: float, zero_point: int) -> np.ndarray:
-    if scale == 0:
-        scale = 1.0
-    qmin, qmax = np.iinfo(dtype).min, np.iinfo(dtype).max
-    quantized = np.round(data / scale + zero_point)
-    return np.clip(quantized, qmin, qmax).astype(dtype)
+def classify_frame(frame: np.ndarray):
+    """Run inference on a BGR frame from OpenCV."""
+    img = _preprocess_frame(frame)
+    img = np.expand_dims(img, axis=0)
 
+    _interpreter.set_tensor(_input_index, img)
+    _interpreter.invoke()
 
-def _dequantize_output(data: np.ndarray, *, scale: float, zero_point: int) -> np.ndarray:
-    if data.dtype == np.float32 or scale == 0:
-        return data.astype(np.float32)
-    return (data.astype(np.float32) - zero_point) * scale
+    output = _interpreter.get_tensor(_output_index)[0].astype(np.float32)
 
+    # If output is uint8, convert to float
+    if _output_dtype == np.uint8:
+        scale = _output_details[0]["quantization_parameters"]["scales"][0]
+        zero = _output_details[0]["quantization_parameters"]["zero_points"][0]
+        output = (output - zero) * scale
 
-def _softmax(logits: np.ndarray) -> np.ndarray:
-    shifted = logits - np.max(logits)
-    exp_vals = np.exp(shifted)
-    denom = np.sum(exp_vals)
-    if denom == 0:
-        return np.zeros_like(exp_vals, dtype=np.float32)
-    return (exp_vals / denom).astype(np.float32)
+    probs = tf.nn.softmax(output).numpy()
+    idx = int(np.argmax(probs))
+    confidence = float(probs[idx])
 
-
-def classify_frame(
-    frame: np.ndarray,
-    bundle: TFLiteModelBundle,
-) -> Tuple[int, float, np.ndarray]:
-    """Run a forward pass on an OpenCV BGR frame and return class index plus confidences."""
-
-    normalized = _normalize_frame(
-        frame, width=bundle.input_width, height=bundle.input_height, preprocess=getattr(bundle, "preprocess", "zero_one")
-    )
-    input_tensor = np.expand_dims(normalized, axis=0)
-
-    if bundle.input_dtype == np.float32:
-        prepared = input_tensor.astype(np.float32)
-    else:
-        prepared = _quantize_input(
-            input_tensor,
-            dtype=bundle.input_dtype,
-            scale=bundle.input_quantization[0],
-            zero_point=bundle.input_quantization[1],
-        )
-
-    interpreter = bundle.interpreter
-    interpreter.set_tensor(bundle.input_index, prepared)
-    interpreter.invoke()
-
-    output = interpreter.get_tensor(bundle.output_index)[0]
-    probabilities = _dequantize_output(
-        output,
-        scale=bundle.output_quantization[0],
-        zero_point=bundle.output_quantization[1],
-    )
-
-    probabilities = _softmax(probabilities)
-    predicted_idx = int(np.argmax(probabilities))
-    confidence = float(probabilities[predicted_idx])
-    return predicted_idx, confidence, probabilities
-
-
-__all__ = ["classify_frame"]
+    return idx, confidence, probs, _class_names[idx]

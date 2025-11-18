@@ -14,8 +14,10 @@
   <div class="container py-4">
     <h1 class="text-center mb-4">🏠 Home Automation Dashboard</h1>
 
+    <!-- Sensor Cards -->
     <div id="sensor-cards" class="row mb-5"></div>
 
+    <!-- Charts -->
     <div class="row g-4">
       <div class="col-md-6">
         <div class="card bg-secondary p-3">
@@ -46,18 +48,31 @@
       </div>
     </div>
 
-    <hr class ="border-light my-4">
-    <h3 class="text-center mb-3">System Logs</h3>
+    <hr class="border-light my-4">
 
-    <div class ="d-flex justify-content-between align-items-center mb-2">
+    <!-- System Logs -->
+    <h3 class="text-center mb-3">System Logs</h3>
+    <div class="d-flex justify-content-between align-items-center mb-2">
       <button id="toggle-scroll" class="btn btn-sm btn-outline-light">⏸ Pause Auto-Scroll</button>
       <small class="text-muted">Auto-refresh every 8s</small>
     </div>
 
-    <div class="card bg-secondary p-3">
+    <div class="card bg-secondary p-3 mb-5">
       <pre id="log-container" class="text-light"
         style="max-height: 400px; overflow-y: auto; font-size: 0.9rem;"></pre>
     </div>
+
+    <!-- AI Camera Feed -->
+    <div class="text-center mb-4">
+      <h3 class="mb-3">📷 AI Camera Feed</h3>
+      <img
+        src="http://192.168.1.234:6060/video?stream={{ range(1000000) | random }}"
+        alt="AI Camera Stream"
+        class="img-fluid rounded border border-light shadow"
+        style="max-height: 480px; width: auto; object-fit: contain;"
+      >
+    </div>
+
   </div>
 
   <script src="{{ url_for('static', filename='js/main.js') }}"></script>

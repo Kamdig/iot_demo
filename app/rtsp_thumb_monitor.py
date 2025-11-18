@@ -1,14 +1,14 @@
 """
 Real-time thumbs detector with on-screen visualization only.
 
-Uses shared utilities from ``thumbs_ai.thumbs`` to load the model, classify
+Uses shared utilities from ``thumbs_pi.thumbs`` to load the model, classify
 frames from the configured RTSP stream, and render probability overlays. This
 script is useful for monitoring predictions without triggering Home Assistant
-actions (see ``thumbs_ai/thumbs.py`` for automation support).
+actions (see ``thumbs_pi/thumbs.py`` for automation support).
 """
 from __future__ import annotations
 
-from thumbs.thumbs import classify_frame, load_assets, overlay_prediction
+from thumbs_pi.thumbs import classify_frame, load_assets, overlay_prediction
 from typing import Optional
 import argparse
 import time

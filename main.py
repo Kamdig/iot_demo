@@ -7,12 +7,17 @@ import logging
 
 # Entry point: wire up infrastructure and start the Flask app server.
 if __name__ == "__main__":
+    # Bring up logging first so later steps report rich output to both console and file.
     initialize_logger()
+    # Ensure the SQLite database schema exists before any background threads touch it.
     initialize_database()
     logging.info("Starting main application...")
+    # Connect to MQTT as early as possible so downstream services can publish events.
     initialize_mqtt()
     publish_message("home/automation/status", "Application started")
+    # Kick off all background loops (sensor polling + thumbs monitor).
     start_background_tasks()
+    # Create and serve the Flask dashboard plus REST API.
     app = create_app()
     app.run(host="0.0.0.0", port=5000, debug=True, use_reloader=False)
 
@@ -26,4 +31,3 @@ if __name__ == "__main__":
 # export HA_CO2_SENSOR="sensor.co2_monitor_air_quality_detector_carbon_dioxide_co2_level"
 # export HA_LIGHT_ENTITY=light.bulb_6_multi_color
 # export HA_THUMBS_LIGHT_ENTITY="light.bulb_6_multi_color"
-# export THUMBSDI_SPLAY_WINDOW="0" (if testing = 1 to show window)

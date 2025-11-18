@@ -70,7 +70,7 @@ def _build_client_from_env() -> Optional[HomeAssistantClient]:
         logger.warning("HOMEASSISTANT_TOKEN not set; Home Assistant integration disabled.")
         return None
 
-    base_url = os.getenv("HOMEASSISTANT_BASE_URL", "http://homeassistant.local:8123")
+    base_url = os.getenv("HOMEASSISTANT_BASE_URL", "http://iotassistant.local:8123")
     timeout_value = 10.0
     timeout_env = os.getenv("HOMEASSISTANT_TIMEOUT")
     if timeout_env:

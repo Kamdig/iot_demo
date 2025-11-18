@@ -1,6 +1,8 @@
 from flask import Flask, jsonify, render_template, request
+from thumbs_pi.ai_stream import mjpeg_response
 from app.database.database import database_get_recent
 from app.homeassistant.client import set_light_state
+import requests
 import logging
 import os
 
@@ -18,16 +20,17 @@ def create_app():
         data = database_get_recent("environment", limit)
         return jsonify(data)
 
+    def send_gesture_to_homeassistant(gesture_name):
+        url = "http://iotassistant.local:8123/api/webhook/gesture_event"
+        data = {"gesture": gesture_name}
+        try:
+            requests.post(url, json=data, timeout=1)
+        except Exception as e:
+            print("Failed to send gesture event:", e)
 
-    @app.route("/api/light/<state>")
-    def toggle_light(state):
-        # Flip the configured Home Assistant light on/off.
-        desired_state = state.lower() == "on"
-        # Report failures if Home Assistant rejected the command.
-        if not set_light_state(LIGHT_ENTITY, desired_state):
-            return jsonify({"status": "error", "light_state": state, "entity": LIGHT_ENTITY}), 500
-        return jsonify({"status": "success", "light_state": state, "entity": LIGHT_ENTITY})
-    
+    @app.route("/video")
+    def video_feed():
+        return mjpeg_response(send_gesture_to_homeassistant)
     
     @app.route('/api/logs')
     def get_logs():

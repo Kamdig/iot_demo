@@ -23,6 +23,7 @@ def draw_probability_panel(
     padding = 8
     total_height = line_height * len(class_names) + padding
 
+    # Draw a translucent rectangle so the histogram stays readable regardless of scene brightness.
     panel = frame.copy()
     cv2.rectangle(
         panel,

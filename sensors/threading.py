@@ -1,49 +1,91 @@
-from sensors.sensor_loops import read_sensor_loop
-from thumbs.thumbs import run_rtsp_monitor
-import threading
+from __future__ import annotations
+
 import logging
-import time
 import os
+import threading
+from typing import Callable, List, Optional
+
+from sensors.sensor_loops import read_sensor_loop
+
+
+def _parse_env_flag(name: str) -> Optional[bool]:
+    """Interpret common truthy/falsy strings from the environment."""
+    value = os.getenv(name)
+    if value is None:
+        return None
+
+    normalized = value.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+
+    logging.warning("Ignoring invalid boolean value '%s' for %s.", value, name)
+    return None
+
+
+def _start_thread(target: Callable[[], None], *, name: str) -> threading.Thread:
+    """Helper that consistently configures daemon threads and starts them."""
+    thread = threading.Thread(target=target, name=name, daemon=True)
+    thread.start()
+    return thread
+
+
+def _thumbs_worker() -> None:
+    """Background task that mirrors running ``python -m thumbs_pi``."""
+    try:
+        from thumbs_pi.monitor import run_rtsp_monitor
+        from thumbs_pi.thumbs import parse_args
+    except Exception:
+        logging.exception("Thumbs monitor dependencies missing; set THUMBS_AUTOSTART=0 to disable.")
+        return
+
+    args = parse_args([])
+    display_override = _parse_env_flag("THUMBS_DISPLAY_WINDOW")
+    # Headless deployments default to no OpenCV window, but allow overrides for debugging.
+    display = display_override if display_override is not None else False
+
+    disable_override = _parse_env_flag("THUMBS_DISABLE_HA")
+    disable_ha = disable_override if disable_override is not None else args.disable_ha
+
+    logging.info(
+        "Starting thumbs monitor thread (source=%s, frame_skip=%s, min_confidence=%s, display=%s, ha=%s).",
+        args.rtsp_url,
+        args.frame_skip,
+        args.min_confidence,
+        display,
+        "enabled" if not disable_ha else "disabled",
+    )
+    try:
+        run_rtsp_monitor(
+            rtsp_url=args.rtsp_url,
+            frame_skip=args.frame_skip,
+            min_confidence=args.min_confidence,
+            display=display,
+            action_cooldown=args.action_cooldown,
+            enable_home_assistant=not disable_ha,
+        )
+    except Exception:
+        logging.exception("Thumbs monitor thread terminated due to an unexpected error.")
+
+
+def _should_start_thumbs() -> bool:
+    """Return whether the thumbs monitor thread should be auto-started."""
+    override = _parse_env_flag("THUMBS_AUTOSTART")
+    if override is not None:
+        return override
+    return True
 
 
 # Launch sensor, automation, drone, and optional thumbs monitor threads.
-def start_background_tasks():
-    threading.Thread(target=read_sensor_loop, daemon=True).start()
-    # Spin up the RTSP thumbs monitor only when enabled via configuration.
-    if is_thumbs_monitor_enabled():
-        threading.Thread(target=thumbs_monitor_loop, daemon=True, name="ThumbsMonitor").start()
-    logging.info("Background sensor and automation threads started.")
+def start_background_tasks() -> List[threading.Thread]:
+    """Spin up all long-lived background services and return the thread handles."""
+    threads: List[threading.Thread] = []
+    threads.append(_start_thread(read_sensor_loop, name="ha-sensor-poll"))
+    logging.info("Home Assistant sensor polling thread started.")
 
-def is_thumbs_monitor_enabled() -> bool:
-    # Interpret the environment toggle allowing the thumbs monitor to run.
-    value = os.getenv("THUMBS_MONITOR_ENABLED", "1").strip().lower()
-    return value not in {"0", "false", "off", "no"}
-
-
-def thumbs_monitor_loop():
-    # Continuously run the RTSP thumbs monitor with retry safeguards.
-    url = os.getenv("THUMBS_RTSP_URL", "rtsp://iotworldcam:smart123@192.168.1.204/stream2")
-    frame_skip = int(os.getenv("THUMBS_FRAME_SKIP", "2"))
-    min_confidence = float(os.getenv("THUMBS_MIN_CONFIDENCE", "0.6"))
-    cooldown = float(os.getenv("THUMBS_ACTION_COOLDOWN", "2.0"))
-    display_window = os.getenv("THUMBS_DISPLAY_WINDOW", "1").strip().lower() in {"1", "true", "yes"}
-    disable_ha = os.getenv("THUMBS_DISABLE_HA", "0").strip().lower() in {"1", "true", "yes"}
-
-    logging.info("Starting thumbs monitor (display=%s, HA enabled=%s).", display_window, not disable_ha)
-
-    # Keep restarting the monitor when it crashes to maintain coverage.
-    while True:
-        try:
-            run_rtsp_monitor(
-                rtsp_url=url,
-                frame_skip=frame_skip,
-                min_confidence=min_confidence,
-                display=display_window,
-                action_cooldown=cooldown,
-                enable_home_assistant=not disable_ha,
-            )
-            logging.info("Thumbs monitor loop exited normally.")
-            break
-        except Exception as exc:
-            logging.exception("Thumbs monitor encountered an error: %s. Retrying in 5 seconds.", exc)
-            time.sleep(5)
+    if _should_start_thumbs():
+        threads.append(_start_thread(_thumbs_worker, name="thumbs-monitor"))
+    else:
+        logging.info("THUMBS_AUTOSTART disabled; skipping thumbs monitor thread.")
+    return threads
