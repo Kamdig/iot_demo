@@ -124,8 +124,8 @@ def convert_to_tflite(model, train_ds):
     converter.optimizations = [tf.lite.Optimize.DEFAULT]
     converter.representative_dataset = rep_gen
 
-    # Use INT8 weights but float input for easier deployment
-    converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+    # FLOAT input, INT8 weights — works everywhere
+    converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS]
     converter.inference_input_type = tf.float32
     converter.inference_output_type = tf.float32
 
@@ -141,38 +141,3 @@ def load_class_names():
     return [line.strip() for line in CLASS_NAMES_PATH.read_text().splitlines()]
 
 
-def predict_image(image_path: str, use_tflite=False):
-    if not os.path.exists(image_path):
-        raise FileNotFoundError(image_path)
-
-    class_names = load_class_names()
-    img = Image.open(image_path).convert("RGB").resize(IMG_SIZE)
-
-    # SAME preprocessing as training
-    arr = np.array(img).astype(np.float32)
-    arr = (arr / 127.5) - 1.0
-    arr = np.expand_dims(arr, axis=0)
-
-    if use_tflite:
-        interpreter = tf.lite.Interpreter(model_path=str(TFLITE_QUANT_PATH))
-        interpreter.allocate_tensors()
-        input_details = interpreter.get_input_details()
-        output_details = interpreter.get_output_details()
-
-        interpreter.set_tensor(input_details[0]["index"], arr)
-        interpreter.invoke()
-        prediction = interpreter.get_tensor(output_details[0]["index"])[0]
-    else:
-        model = keras.models.load_model(MODEL_PATH)
-        prediction = model.predict(arr, verbose=0)[0]
-
-    idx = np.argmax(prediction)
-    print(f"Predicted: {class_names[idx]} ({prediction[idx]*100:.2f}%)")
-
-
-if __name__ == "__main__":
-    import sys
-    if len(sys.argv) > 1:
-        predict_image(sys.argv[1], use_tflite=False)
-    else:
-        train_model()

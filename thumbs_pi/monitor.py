@@ -92,9 +92,10 @@ def run_rtsp_monitor(
     display: bool = True,
     action_cooldown: float = 2.0,
     enable_home_assistant: bool = True,
+    bundle,
+    class_names,
 ) -> None:
     """Watch an RTSP stream, render predictions, and optionally trigger Home Assistant actions."""
-    bundle, class_names = load_assets()
     bridge = _build_home_assistant_bridge(
         min_confidence=min_confidence,
         action_cooldown=action_cooldown,

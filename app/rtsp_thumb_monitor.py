@@ -44,15 +44,12 @@ def main() -> None:
     args = parse_args()
 
     try:
-        model, class_names, device = load_assets()
-    except FileNotFoundError as exc:
-        print(f"[ERROR] {exc}")
-        sys.exit(1)
+        bundle, class_names = load_assets()
     except Exception as exc:
         print(f"[ERROR] Failed to load model assets: {exc}")
         sys.exit(1)
 
-    print(f"[INFO] Loaded model on device: {device}")
+    print("[INFO] Model loaded (TFLite).")
     print(f"[INFO] Class labels: {list(class_names)}")
 
     cap = cv2.VideoCapture(args.rtsp_url)
@@ -85,7 +82,7 @@ def main() -> None:
                     break
                 continue
 
-            predicted_idx, confidence, probabilities = classify_frame(frame, model, device)
+            predicted_idx, confidence, probabilities = classify_frame(frame, bundle)
             label = class_names[predicted_idx]
 
             certainty = f"{confidence * 100:.1f}%"

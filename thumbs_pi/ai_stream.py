@@ -1,19 +1,20 @@
 import cv2
 import time
 import numpy as np
-from flask import Response
+from flask import Response, stream_with_context
+
+# Only load the TFLite bundle – NO TensorFlow imports here!
 from thumbs_pi.assets import load_assets
 from thumbs_pi.inference import classify_frame
 from thumbs_pi.overlay import overlay_prediction
-from flask import Response, stream_with_context
-
 
 RTSP_URL = "rtsp://iotworldcam:smart123@192.168.1.204/stream2"
 FRAME_SKIP = 3
 MIN_CONFIDENCE = 0.6
 
-# Load model and labels once
-bundle, class_names = load_assets(num_threads=4)  # ✅ use 4 threads
+# Load TFLite interpreter + metadata
+bundle, class_names = load_assets(num_threads=4)
+
 
 def gen_frames(gesture_callback=None):
     cap = cv2.VideoCapture(RTSP_URL)
@@ -34,22 +35,30 @@ def gen_frames(gesture_callback=None):
 
         frame_idx += 1
 
+        # Only classify every FRAME_SKIP frames
         if frame_idx % FRAME_SKIP == 0:
-            small = cv2.resize(frame, (bundle.input_width, bundle.input_height))
+            # Resize BEFORE sending to classify_frame()
+            small_frame = cv2.resize(
+                frame, (bundle.input_width, bundle.input_height)
+            )
+
             t2 = time.time()
-            pred_idx, confidence, probs = classify_frame(small, bundle)
+            pred_idx, confidence, probs = classify_frame(small_frame, bundle)
             t3 = time.time()
 
             print(
-                f"⏱ Capture: {t1 - t0:.3f}s | Resize: {t2 - t1:.3f}s | Inference: {t3 - t2:.3f}s"
+                f"⏱ Capture: {t1 - t0:.3f}s | "
+                f"Resize: {t2 - t1:.3f}s | "
+                f"Inference: {t3 - t2:.3f}s"
             )
 
             label = class_names[pred_idx]
 
-            # 🔥 NEW: send gesture event to HA
+            # Trigger callback if gesture confident
             if confidence >= MIN_CONFIDENCE and gesture_callback:
                 gesture_callback(label)
 
+        # Overlay prediction onto full frame
         if label is not None:
             overlay_prediction(
                 frame,
@@ -60,14 +69,16 @@ def gen_frames(gesture_callback=None):
                 min_confidence=MIN_CONFIDENCE,
             )
 
+        # Encode frame for MJPEG
         ret, buffer = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
         if not ret:
             continue
 
-        frame_bytes = buffer.tobytes()
         yield (
             b"--frame\r\n"
-            b"Content-Type: image/jpeg\r\n\r\n" + frame_bytes + b"\r\n"
+            b"Content-Type: image/jpeg\r\n\r\n" +
+            buffer.tobytes() +
+            b"\r\n"
         )
 
     cap.release()
