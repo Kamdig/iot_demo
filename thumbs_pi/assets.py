@@ -1,13 +1,11 @@
 from __future__ import annotations
-from pathlib import Path
 import tflite_runtime.interpreter as tflite
-import numpy as np
+from pathlib import Path
 
 # Paths used on the Pi
 BASE_DIR = Path(__file__).resolve().parent
 TFLITE_QUANT_PATH = BASE_DIR / "model_int8.tflite"
 CLASS_NAMES_PATH = BASE_DIR / "class_names.txt"
-
 
 class TFLiteModelBundle:
     def __init__(self, interpreter, input_details, output_details, class_names):

@@ -1,7 +1,6 @@
 from pathlib import Path
 import logging
 import sqlite3
-import os
 
 # --- Shared database location ---
 DB_FILENAME = "environment.db"

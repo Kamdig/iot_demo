@@ -2,7 +2,6 @@ Flask
 paho-mqtt
 requests
 opencv-python
-pillow
 numpy==1.26.4
 tflite-runtime
-ttkbootstrap
+cflib # for Crazyflie communication

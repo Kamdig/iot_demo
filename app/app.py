@@ -1,12 +1,13 @@
+from thumbs_pi.drone_controller import handle_gesture as drone_handle_gesture
 from flask import Flask, jsonify, render_template, request
-from thumbs_pi.ai_stream import mjpeg_response
 from app.database.database import database_get_recent
-from app.homeassistant.client import set_light_state
+from thumbs_pi.ai_stream import mjpeg_response
 import requests
 import logging
 import os
 
-LIGHT_ENTITY = os.getenv("HA_LIGHT_ENTITY", "light.aeotec_led")
+HOME_ASSISTANT_BASE_URL = os.getenv("HOMEASSISTANT_BASE_URL", "").rstrip("/")
+GESTURE_WEBHOOK_ID = os.getenv("HA_GESTURE_WEBHOOK_ID", "gesture_event")
 LOG_DIR = "logs"
 
 def create_app():
@@ -21,16 +22,43 @@ def create_app():
         return jsonify(data)
 
     def send_gesture_to_homeassistant(gesture_name):
-        url = "http://iotassistant.local:8123/api/webhook/gesture_event"
+        if not HOME_ASSISTANT_BASE_URL:
+            logging.warning("HOMEASSISTANT_BASE_URL not set; skipping gesture webhook.")
+            return
+
+        url = f"{HOME_ASSISTANT_BASE_URL}/api/webhook/{GESTURE_WEBHOOK_ID}"
         data = {"gesture": gesture_name}
+
         try:
-            requests.post(url, json=data, timeout=1)
+            resp = requests.post(url, json=data, timeout=2)
+            resp.raise_for_status()
+            logging.debug(
+                "Sent gesture '%s' to %s (status=%s)",
+                gesture_name, url, resp.status_code
+            )
         except Exception as e:
-            print("Failed to send gesture event:", e)
+            logging.exception(
+                "Failed to send gesture event '%s' to %s: %s",
+                gesture_name, url, e
+            )
+
+    def handle_gesture(label: str):
+        """
+        Fan-out for every detected gesture:
+        - send to Home Assistant
+        - trigger Crazyflie pattern
+        """
+        logging.info("Global gesture handler: %s", label)
+
+        # 1) Home Assistant
+        send_gesture_to_homeassistant(label)
+
+        # 2) Drone
+        drone_handle_gesture(label)
 
     @app.route("/video")
     def video_feed():
-        return mjpeg_response(send_gesture_to_homeassistant)
+        return mjpeg_response(handle_gesture)
     
     @app.route('/api/logs')
     def get_logs():

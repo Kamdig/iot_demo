@@ -1,34 +1,36 @@
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional
+from dataclasses import dataclass, field
 import requests
 import logging
+import json
+import time
 import os
 
+ClientFactory = Callable[[], Optional["HomeAssistantClient"]]
 
-_cached_client: "Optional[HomeAssistantClient]" = None
+_client_factory: Optional[ClientFactory] = None
+_client_cache: Optional["HomeAssistantClient"] = None
 
 
 class HomeAssistantClient:
-    """Thin wrapper around the Home Assistant REST API for reading entity state."""
+    """Thin wrapper around the Home Assistant REST API for state + service calls."""
 
     def __init__(
         self,
+        *,
         base_url: Optional[str] = None,
         token: Optional[str] = None,
         timeout: Optional[float] = None,
     ) -> None:
-        # Initialize the client with environment-provided defaults.
         default_base = os.getenv("HOMEASSISTANT_BASE_URL", "http://homeassistant.local:8123")
         self.base_url = (base_url or default_base).rstrip("/")
         self.token = token or os.getenv("HOMEASSISTANT_TOKEN")
-        # Ensure we have an authorization token before making any requests.
         if not self.token:
             raise ValueError("HOMEASSISTANT_TOKEN not set; create a long-lived access token in Home Assistant.")
 
         env_timeout = os.getenv("HOMEASSISTANT_TIMEOUT")
-        # Prefer explicit timeout argument when provided.
         if timeout is not None:
             self.timeout = timeout
-        # Otherwise use the environment override when provided.
         elif env_timeout:
             try:
                 self.timeout = float(env_timeout)
@@ -38,23 +40,22 @@ class HomeAssistantClient:
         else:
             self.timeout = 10.0
 
-    def _headers(self) -> Dict[str, str]:
-        # Provide the authentication headers required by Home Assistant.
-        return {
-            "Authorization": f"Bearer {self.token}",
-            "Content-Type": "application/json",
-        }
+        self._session = requests.Session()
+        self._session.headers.update(
+            {
+                "Authorization": f"Bearer {self.token}",
+                "Content-Type": "application/json",
+            }
+        )
 
     def get_entity_state(self, entity_id: str) -> Optional[Dict[str, Any]]:
         """Return the raw state payload for the provided entity ID."""
-        # Build the REST endpoint for the specific entity state.
         url = f"{self.base_url}/api/states/{entity_id}"
         try:
-            response = requests.get(url, headers=self._headers(), timeout=self.timeout)
+            response = self._session.get(url, timeout=self.timeout)
             response.raise_for_status()
             return response.json()
         except requests.exceptions.HTTPError as exc:
-            # Distinguish 404 from other HTTP errors for better logs.
             if exc.response is not None and exc.response.status_code == 404:
                 logging.warning("Home Assistant entity '%s' not found (404).", entity_id)
             else:
@@ -69,10 +70,9 @@ class HomeAssistantClient:
 
     def call_service(self, domain: str, service: str, data: Dict[str, Any]) -> bool:
         """Invoke a Home Assistant service and return True on success."""
-        # Target the REST service endpoint for the domain/service combo.
         url = f"{self.base_url}/api/services/{domain}/{service}"
         try:
-            response = requests.post(url, headers=self._headers(), json=data, timeout=self.timeout)
+            response = self._session.post(url, json=data, timeout=self.timeout)
             response.raise_for_status()
             return True
         except requests.exceptions.HTTPError as exc:
@@ -99,60 +99,63 @@ class HomeAssistantClient:
             )
         return False
 
-    def set_light_state(
-        self,
-        entity_id: str,
-        on: bool,
-        *,
-        brightness_pct: Optional[int] = None,
-        color_name: Optional[str] = None,
-    ) -> bool:
-        payload: Dict[str, Any] = {"entity_id": entity_id}
 
-        # Include brightness when the caller specifies a value.
-        if brightness_pct is not None:
-            payload["brightness_pct"] = max(0, min(100, int(brightness_pct)))
-        # Include color hints whenever provided.
-        if color_name:
-            payload["color_name"] = color_name
+def _build_client_from_env() -> Optional[HomeAssistantClient]:
+    token = os.getenv("HOMEASSISTANT_TOKEN")
+    if not token:
+        logging.warning("HOMEASSISTANT_TOKEN not set; Home Assistant integration disabled.")
+        return None
 
-        # Choose between turn_on and turn_off endpoints.
-        if on:
-            return self.call_service("light", "turn_on", payload)
-        return self.call_service("light", "turn_off", {"entity_id": entity_id})
+    base_url = os.getenv("HOMEASSISTANT_BASE_URL", "http://homeassistant.local:8123")
+    timeout_value = 10.0
+    timeout_env = os.getenv("HOMEASSISTANT_TIMEOUT")
+    if timeout_env:
+        try:
+            timeout_value = float(timeout_env)
+        except ValueError:
+            logging.warning("Invalid HOMEASSISTANT_TIMEOUT value '%s'; falling back to 10 seconds.", timeout_env)
+
+    return HomeAssistantClient(base_url=base_url, token=token, timeout=timeout_value)
 
 
-# Retrieve (or lazily create) a cached HomeAssistantClient singleton.
+def set_client_factory(factory: Optional[ClientFactory]) -> None:
+    """Override Home Assistant client creation (primarily for testing)."""
+    global _client_factory, _client_cache
+    _client_factory = factory
+    _client_cache = None
+
+
 def get_client() -> Optional[HomeAssistantClient]:
-    """Return a cached HomeAssistantClient instance, if configuration permits."""
-    global _cached_client
-    # Reuse the existing client to avoid recreating sessions.
-    if _cached_client is not None:
-        return _cached_client
+    """Return a cached Home Assistant client or build one from environment."""
+    global _client_cache
+    if _client_cache is not None:
+        return _client_cache
 
+    factory = _client_factory or _build_client_from_env
     try:
-        _cached_client = HomeAssistantClient()
+        client = factory()
     except ValueError as exc:
         logging.error("Home Assistant client configuration error: %s", exc)
         return None
-    return _cached_client
+
+    if client is None:
+        return None
+
+    _client_cache = client
+    return _client_cache
 
 
-# Convenience helper to fetch numeric sensor readings.
 def get_numeric_state(entity_id: str) -> Optional[float]:
     """Retrieve a numeric sensor value from Home Assistant."""
     client = get_client()
-    # Abort if the shared client failed to initialize.
     if client is None:
         return None
 
     payload = client.get_entity_state(entity_id)
-    # No payload means the entity is unavailable.
     if not payload:
         return None
 
     raw_state = payload.get("state")
-    # Ignore missing or non-numeric placeholder values.
     if raw_state in (None, "", "unknown", "unavailable"):
         logging.debug("Entity '%s' returned non-numeric state '%s'.", entity_id, raw_state)
         return None
@@ -164,30 +167,24 @@ def get_numeric_state(entity_id: str) -> Optional[float]:
         return None
 
 
-# Convenience helper to fetch binary sensor states.
 def get_boolean_state(entity_id: str) -> Optional[bool]:
     """Retrieve a binary sensor value from Home Assistant."""
     client = get_client()
-    # Abort if the shared client is unavailable.
     if client is None:
         return None
 
     payload = client.get_entity_state(entity_id)
-    # Missing payload means the entity could not be retrieved.
     if not payload:
         return None
 
     raw_state = payload.get("state")
-    # Treat absent state as unavailable.
     if raw_state is None:
         logging.debug("Entity '%s' returned no state.", entity_id)
         return None
 
     normalized = str(raw_state).strip().lower()
-    # Map known affirmative strings to True.
     if normalized in {"on", "true", "1", "open", "detected"}:
         return True
-    # Map known negative strings to False.
     if normalized in {"off", "false", "0", "closed", "clear"}:
         return False
 
@@ -195,24 +192,119 @@ def get_boolean_state(entity_id: str) -> Optional[bool]:
     return None
 
 
-# Proxy used by the rest of the app to flip a light entity on/off.
-def set_light_state(
-    entity_id: str,
-    on: bool,
-    *,
-    brightness_pct: Optional[int] = None,
-    color_name: Optional[str] = None,
-) -> bool:
-    """Set a Home Assistant light entity on/off with optional brightness and color."""
-    client = get_client()
-    # Refuse to continue when the Home Assistant client isn't available.
-    if client is None:
-        logging.error("Cannot control light '%s' because Home Assistant client failed to initialize.", entity_id)
-        return False
+@dataclass
+class HAServiceAction:
+    """Wrapper around a Home Assistant service invocation."""
 
-    return client.set_light_state(
-        entity_id,
-        on,
-        brightness_pct=brightness_pct,
-        color_name=color_name,
-    )
+    domain: str
+    service: str
+    payload: Dict[str, Any]
+
+    def execute(self) -> bool:
+        client = get_client()
+        if client is None:
+            logging.error(
+                "Home Assistant client unavailable; cannot execute %s.%s with payload %s",
+                self.domain,
+                self.service,
+                self.payload,
+            )
+            return False
+
+        success = client.call_service(self.domain, self.service, self.payload)
+        if success:
+            logging.info("Home Assistant service %s.%s executed with %s", self.domain, self.service, self.payload)
+        else:
+            logging.error("Home Assistant service %s.%s failed for payload %s", self.domain, self.service, self.payload)
+        return success
+
+
+def parse_service_string(service: str) -> tuple[str, str]:
+    """Split a Home Assistant service string of the form 'domain.service'."""
+    if "." not in service:
+        raise ValueError(f"Service '{service}' must be in the format 'domain.service'.")
+    domain, service_name = service.split(".", 1)
+    if not domain or not service_name:
+        raise ValueError(f"Service '{service}' must be in the format 'domain.service'.")
+    return domain, service_name
+
+
+def load_action_from_env(
+    prefix: str,
+    default_service: Optional[str],
+    default_payload: Optional[Dict[str, Any]],
+) -> Optional[HAServiceAction]:
+    """Build an HAServiceAction from environment variables, falling back to defaults."""
+    service_key = f"{prefix}_SERVICE"
+    payload_key = f"{prefix}_PAYLOAD"
+
+    service_value = os.getenv(service_key, (default_service or "")).strip()
+    if not service_value:
+        logging.debug("%s not configured; skipping service action.", service_key)
+        return None
+
+    payload: Dict[str, Any] = {}
+    if default_payload:
+        payload.update(default_payload)
+
+    payload_override = os.getenv(payload_key)
+    if payload_override:
+        try:
+            payload.update(json.loads(payload_override))
+        except json.JSONDecodeError as exc:
+            logging.error("Invalid JSON for %s: %s", payload_key, exc)
+
+    try:
+        domain, service_name = parse_service_string(service_value)
+    except ValueError as exc:
+        logging.error("Skipping Home Assistant action for %s: %s", service_key, exc)
+        return None
+
+    return HAServiceAction(domain=domain, service=service_name, payload=payload)
+
+
+@dataclass
+class HomeAssistantGestureBridge:
+    """Coordinate gesture detections with Home Assistant service calls."""
+
+    min_confidence: float
+    cooldown_seconds: float
+    thumbs_up_action: Optional[HAServiceAction] = None
+    thumbs_down_action: Optional[HAServiceAction] = None
+    _last_triggered: Dict[str, float] = field(default_factory=dict, init=False)
+
+    def handle(self, label: str, confidence: float) -> None:
+        if confidence < self.min_confidence:
+            return
+
+        action = self._select_action(label)
+        if action is None:
+            return
+
+        now = time.time()
+        last_fired = self._last_triggered.get(label, 0.0)
+        if now - last_fired < self.cooldown_seconds:
+            return
+
+        if action.execute():
+            self._last_triggered[label] = now
+
+    def _select_action(self, label: str) -> Optional[HAServiceAction]:
+        if label == "thumbs_up":
+            return self.thumbs_up_action
+        if label == "thumbs_down":
+            return self.thumbs_down_action
+        return None
+
+
+__all__ = [
+    "HAServiceAction",
+    "HomeAssistantClient",
+    "HomeAssistantGestureBridge",
+    "get_client",
+    "get_numeric_state",
+    "get_boolean_state",
+    "load_action_from_env",
+    "parse_service_string",
+    "set_client_factory",
+]

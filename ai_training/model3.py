@@ -1,8 +1,7 @@
+from keras import layers
 import tensorflow as tf
-from tensorflow import keras
-from tensorflow.keras import layers
 import pathlib
-import os
+import keras
 
 # ==========================================
 # PATHS
@@ -16,7 +15,7 @@ CLASS_NAMES_PATH = BASE_DIR / "class_names.txt"
 # ==========================================
 # PARAMETERS
 # ==========================================
-IMG_SIZE = (160, 160)     # change to (224, 224) for better accuracy
+IMG_SIZE = (224, 224)
 BATCH_SIZE = 32
 EPOCHS_HEAD = 5
 EPOCHS_FINE = 15
@@ -31,7 +30,7 @@ def prepare_datasets():
     if not DATASET_DIR.exists():
         raise FileNotFoundError(f"Dataset not found: {DATASET_DIR}")
 
-    train_ds = tf.keras.utils.image_dataset_from_directory(
+    train_ds = keras.utils.image_dataset_from_directory(
         DATASET_DIR,
         validation_split=VAL_SPLIT,
         subset="training",
@@ -40,7 +39,7 @@ def prepare_datasets():
         batch_size=BATCH_SIZE,
     )
 
-    val_ds = tf.keras.utils.image_dataset_from_directory(
+    val_ds = keras.utils.image_dataset_from_directory(
         DATASET_DIR,
         validation_split=VAL_SPLIT,
         subset="validation",
@@ -79,7 +78,7 @@ def build_model(num_classes):
         layers.RandomContrast(0.15),
     ])
 
-    base = tf.keras.applications.MobileNetV3Small(
+    base = keras.applications.MobileNetV3Small(
         include_top=False,
         pooling="avg",
         input_shape=IMG_SIZE + (3,),
@@ -89,7 +88,7 @@ def build_model(num_classes):
 
     inputs = keras.Input(shape=IMG_SIZE + (3,))
     x = data_aug(inputs)
-    x = tf.keras.applications.mobilenet_v3.preprocess_input(x)
+    x = keras.applications.mobilenet_v3.preprocess_input(x)
     x = base(x, training=False)
     x = layers.Dense(128, activation="relu")(x)
     x = layers.Dropout(0.3)(x)

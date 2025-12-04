@@ -1,10 +1,7 @@
 from __future__ import annotations
-
 from typing import Sequence, Tuple
-
-import cv2
 import numpy as np
-
+import cv2
 
 def draw_probability_panel(
     frame: np.ndarray,

@@ -1,9 +1,7 @@
 from __future__ import annotations
-import cv2
-import numpy as np
 from .assets import TFLiteModelBundle
-import math
-
+import numpy as np
+import cv2
 
 def _softmax(logits: np.ndarray) -> np.ndarray:
     """Pure NumPy softmax."""
@@ -17,13 +15,11 @@ def _preprocess_frame(frame: np.ndarray, bundle: TFLiteModelBundle) -> np.ndarra
     resized = cv2.resize(rgb, (bundle.input_width, bundle.input_height))
 
     if bundle.input_dtype == np.uint8:
-        # Quantized model: use raw uint8 input
+        # Quantized model: raw 0–255 uint8, model handles quantization
         return resized.astype(np.uint8)
 
-    # Float input → MobileNetV3 scaling: [0,255] → [-1,1]
-    arr = resized.astype(np.float32)
-    arr = (arr / 127.5) - 1.0
-    return arr.astype(np.float32)
+    # Float input: just 0–255 float32, model contains preprocess_input
+    return resized.astype(np.float32)
 
 
 def classify_frame(frame: np.ndarray, bundle: TFLiteModelBundle):
@@ -49,7 +45,7 @@ def classify_frame(frame: np.ndarray, bundle: TFLiteModelBundle):
     else:
         output = output.astype(np.float32)
 
-    probs = _softmax(output)
+    probs = output
     idx = int(np.argmax(probs))
     confidence = float(probs[idx])
 

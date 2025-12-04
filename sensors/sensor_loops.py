@@ -1,9 +1,8 @@
+import app.database.database as db
 from datetime import datetime
 import logging
 import time
 import os
-
-import app.database.database as db
 from app.homeassistant.client import (
     get_boolean_state,
     get_numeric_state,
@@ -14,8 +13,6 @@ ILLUMINANCE_SENSOR = os.getenv("HA_ILLUMINANCE_SENSOR", "sensor.mco_air_monitor_
 MOTION_SENSOR = os.getenv("HA_MOTION_SENSOR", "binary_sensor.philio_sensor_motion")
 CO2_SENSOR = os.getenv("HA_CO2_SENSOR", "sensor.mco_air_monitor_co2")
 POLL_INTERVAL_SECONDS = int(os.getenv("HA_SENSOR_POLL_INTERVAL", "60"))
-LIGHT_ENTITY = os.getenv("HA_LIGHT_ENTITY", "light.aeotec_led")
-
 
 def read_sensor_loop():
     logging.info(
@@ -26,7 +23,6 @@ def read_sensor_loop():
         CO2_SENSOR,
         POLL_INTERVAL_SECONDS,
     )
-
     while True:
         temp = get_numeric_state(TEMPERATURE_SENSOR)
         light = get_numeric_state(ILLUMINANCE_SENSOR)

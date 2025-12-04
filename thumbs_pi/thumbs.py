@@ -1,28 +1,17 @@
-"""
-Modernized thumbs-up/-down detection module.
-Uses the new TFLite-only asset system on Raspberry Pi.
-Maintains HA integration and CLI behavior.
-"""
-
 from __future__ import annotations
+from .overlay import draw_probability_panel, overlay_prediction
+from .inference import classify_frame
+from .monitor import run_rtsp_monitor
 import argparse
 import logging
 import os
-
 from .assets import (
     CLASS_NAMES_PATH,
     TFLITE_QUANT_PATH,
     TFLiteModelBundle,
     load_assets,
 )
-from .home_assistant import (
-    HAServiceAction,
-    HomeAssistantGestureBridge,
-    load_action_from_env,
-)
-from .inference import classify_frame
-from .monitor import run_rtsp_monitor
-from .overlay import draw_probability_panel, overlay_prediction
+from app.homeassistant.client import HAServiceAction, HomeAssistantGestureBridge, load_action_from_env
 
 __all__ = [
     "CLASS_NAMES_PATH",
@@ -41,16 +30,13 @@ __all__ = [
 ]
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(args=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Thumbs-up/down detection with optional Home Assistant actions."
     )
     parser.add_argument(
         "--rtsp-url",
-        default=os.getenv(
-            "THUMBS_RTSP_URL",
-            "rtsp://iotworldcam:smart123@10.136.171.24/stream2",
-        ),
+        default=os.getenv("RTSP_URL") or os.getenv("THUMBS_RTSP_URL"),
         help="RTSP stream URL to connect to.",
     )
     parser.add_argument(
@@ -81,7 +67,10 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Disable Home Assistant service actions.",
     )
-    return parser.parse_args()
+    args = parser.parse_args(args)
+    if not args.rtsp_url:
+        parser.error("RTSP URL required via --rtsp-url or RTSP_URL/THUMBS_RTSP_URL environment variable.")
+    return args
 
 
 def main() -> None:

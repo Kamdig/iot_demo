@@ -1,20 +1,15 @@
 from __future__ import annotations
-
-from typing import Dict, Optional, Sequence, Tuple
-
-import cv2
-import logging
-import numpy as np
-import os
-import time
-
-from .assets import load_assets
-from .home_assistant import HAServiceAction, HomeAssistantGestureBridge, load_action_from_env
-from .inference import classify_frame
+from app.homeassistant.client import HAServiceAction, HomeAssistantGestureBridge, load_action_from_env
+from typing import Dict, Optional, Tuple
 from .overlay import overlay_prediction
+from .inference import classify_frame
+import numpy as np
+import logging
+import time
+import cv2
+import os
 
 logger = logging.getLogger(__name__)
-
 
 def _build_home_assistant_bridge(
     *,
@@ -28,7 +23,7 @@ def _build_home_assistant_bridge(
     thumbs_up_action: Optional[HAServiceAction] = None
     thumbs_down_action: Optional[HAServiceAction] = None
 
-    light_entity = os.getenv("HA_THUMBS_LIGHT_ENTITY") or os.getenv("HA_LIGHT_ENTITY")
+    light_entity = os.getenv("HA_LIGHT_ENTITY")
     default_up_payload: Dict[str, object] = {}
     default_down_payload: Dict[str, object] = {}
     if light_entity:
