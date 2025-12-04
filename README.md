@@ -63,6 +63,8 @@ This is split into:
   - Home Assistant instance
 - (Optional) Crazyradio PA dongle + Crazyflie 2.0 drone.
 
+---
+
 #### 1.1.2. Python 3.11 installation (if needed)
 If your distro doesn’t ship a new enough Python, you can build 3.11 from source.
 
@@ -99,6 +101,8 @@ If your distro doesn’t ship a new enough Python, you can build 3.11 from sourc
     python3.11 -m ensurepip
     python3.11 -m pip install --upgrade pip setuptools wheel
 
+---
+
 #### 1.1.3. Model files
 Place your exported model files where thumbs_pi/assets.py expects them, for example:
 
@@ -119,6 +123,8 @@ thumbs_down
 thumbs_up
 ```
 *neutral* is implicit and handled at runtime using a confidence threshold.
+
+---
 
 #### 1.1.4. Environment variables
 Configure runtime parameters using environment variables, either via a .env file or directly in your service:
@@ -149,6 +155,8 @@ MQTT_PORT=1883
 MQTT_USERNAME="user"
 MQTT_PASSWORD="pass"
 ```
+
+---
 
 #### 1.1.5. Accessing the Flask app
     python3.11 main.py
@@ -198,6 +206,8 @@ The JSON payload looks like:
     { "gesture": "thumbs_up" }
 
 or thumbs_down / neutral.
+
+---
 
 #### 1.3.1. Webhook-triggered automations
 
@@ -264,6 +274,8 @@ You can stack this with other automations (motion sensors, CO₂ levels, timeout
 ### 1.4. Optional: Crazyflie 2.0 Drone Setup
 If you enable the drone integration, gestures can also trigger a Crazyflie 2.0.
 
+---
+
 #### 1.4.1. Crazyradio & permissions
 Add a udev rule (Debian/RPi OS example):
 
@@ -277,6 +289,8 @@ sudo udevadm trigger
 ```
 
 Unplug/replug the Crazyradio.
+
+---
 
 #### 1.4.2. Find the Crazyflie URI
 Use a small scan script (or cfclient) to find the URI, e.g.:
@@ -295,6 +309,8 @@ You should get something like:
 Set this in thumbs_pi/drone_controller.py:
 
     CF_URI = "radio://0/10/2M"
+
+---
 
 #### 1.4.3. Gesture → drone behavior
 thumbs_pi/drone_controller.py exposes a function:
@@ -321,7 +337,7 @@ and /video is wired to:
 
 ---
 
-## Disclaimer
+# Disclaimer
 This project controls real hardware:
 - Lights plugged into mains.
 - A small but very real flying robot.
