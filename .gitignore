@@ -226,3 +226,4 @@ cache/
 wvenv/
 train/
 venv311/
+ai_training/hagrid_npz/**/*.npz
