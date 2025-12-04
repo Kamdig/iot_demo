@@ -153,8 +153,10 @@ MQTT_PASSWORD="pass"
 #### 1.1.5. Accessing the Flask app
     python3.11 main.py
 
-Then in a browser: http://<pi-ip>:5000/
-
+Then in a browser: 
+```text
+http://<pi-ip>:5000/
+```
 **Current behavior: gesture detection runs as part of the MJPEG generator. As long as some client is consuming /video (browser tab, HA camera card, or even curl http://<pi-ip>:5000/video > /dev/null), the TFLite loop is active and gestures are sent to Home Assistant (+ optionally the drone).**
 
 ---
