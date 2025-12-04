@@ -191,8 +191,7 @@ Typical flow:
 ---
 
 ### 1.3. Home Assistant Setup
-The Pi sends webhooks to:
-POST http://<home-assistant>/api/webhook/gesture_event
+The Pi sends webhooks to: `POST http://<home-assistant>/api/webhook/gesture_event`
 (Where gesture_event is the value of HA_GESTURE_WEBHOOK_ID.)
 The JSON payload looks like:
 
@@ -281,17 +280,20 @@ Unplug/replug the Crazyradio.
 
 #### 1.4.2. Find the Crazyflie URI
 Use a small scan script (or cfclient) to find the URI, e.g.:
+    
     from cflib.crtp import init_drivers, scan_interfaces
-
+    
     init_drivers()
     print("Scanning...")
     for link_uri, _ in scan_interfaces():
         print("Found Crazyflie:", link_uri)
 
 You should get something like:
+
     Found Crazyflie: radio://0/10/2M
 
 Set this in thumbs_pi/drone_controller.py:
+
     CF_URI = "radio://0/10/2M"
 
 #### 1.4.3. Gesture → drone behavior
