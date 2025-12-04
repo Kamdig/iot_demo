@@ -202,8 +202,7 @@ Typical flow:
 
 Install it easily with Pip.
 In your venv:
-
-  pip install "tensorflow==2.14"
+`pip install "tensorflow==2.14"`
 
 ---
 
