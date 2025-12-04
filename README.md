@@ -52,6 +52,8 @@ This is split into:
 3. Home Assistant configuration.
 4. Optional Crazyflie setup.
 
+---
+
 ### 1.1. Pi Runtime (Flask + TFLite + AI Stream)
 
 #### 1.1.1. System requirements
@@ -195,6 +197,13 @@ Typical flow:
 - class_names.txt with labels in the same index order as the model output.
 
 6. Copy model_int8.tflite and class_names.txt to the Pi as described in 1.1.3.
+
+**DISCLAIMER: TENSORFLOW 2.14 IS REQUIRED IF YOU WANT TO RETRAIN THE MODEL. TFLITE IS BASED ON 2.14, AND ANY NEWER OR OLDER VERSION OF TENSORFLOW WILL NOT WORK!**
+
+Install it easily with Pip.
+In your venv:
+
+  pip install "tensorflow==2.14"
 
 ---
 
