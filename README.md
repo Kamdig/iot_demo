@@ -137,7 +137,7 @@ Example .env:
 LOG_LEVEL=DEBUG
 
 # Home Assistant
-HOMEASSISTANT_TOKEN="your_long_lived_token_here>
+HOMEASSISTANT_TOKEN=<"your_long_lived_token_here">
 HOMEASSISTANT_BASE_URL="http://homeassistant.local:8123"
 HA_GESTURE_WEBHOOK_ID="gesture_event"
 
