@@ -68,7 +68,7 @@ This is split into:
 ---
 
 #### 1.1.2. Python 3.11 installation (if needed)
-If your distro doesn’t ship a new enough Python, you can build 3.11 from source.
+If your distro doesn’t ship with Python 3.11, you can build 3.11 from source.
 
 ##### Update system
     sudo apt update && sudo apt upgrade -y
